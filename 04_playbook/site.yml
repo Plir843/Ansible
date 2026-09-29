@@ -1,0 +1,28 @@
+---
+
+  - name: 0) 웹서버 설정  
+    hosts: webservers
+    tasks:
+    - name: 1) 패키지 설치
+      ansible.builtin.dnf:
+        name: httpd
+        state: present
+
+    - name: 2) 웹서버 설정
+      ansible.builtin.copy:
+        content: 'My WEB Server\n'
+        dest: /var/www/html/index.html
+
+    - name: 3) 웹서버 기동
+      ansible.builtin.service:
+        name: httpd
+        state: started
+        enabled: true
+
+    - name: 4) 방화벽 등록
+      ansible.posix.firewalld:
+        service: http
+        state: enabled
+        permanent: true
+        immediate: true
+

@@ -1,0 +1,4 @@
+---
+collections:
+  - name: redhat.rhel-system_roles-1.108.6.tar.gz
+    type: file

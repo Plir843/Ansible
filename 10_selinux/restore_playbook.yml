@@ -1,0 +1,73 @@
+---
+- name: 시스템 원상 복구 (Restore)
+  hosts: webservers
+  become: true
+
+  vars:
+    # --------------------------------------------------
+    # 기존 SELinux 설정을 삭제(absent) 상태로 덮어씌웁니다.
+    # --------------------------------------------------
+    selinux_booleans:
+      - name: httpd_can_network_connect
+        state: false
+        persistent: true
+
+    selinux_fcontexts:
+      - target: '/www(/.*)?'
+        setype: httpd_sys_content_t
+        state: absent
+
+    selinux_ports:
+      - ports: 8888
+        proto: tcp
+        setype: http_port_t
+        state: absent
+
+  tasks:
+    # --------------------------------------------------
+    # 1. 방화벽 규칙 제거
+    # --------------------------------------------------
+    - name: 방화벽 설정 원복 - 8888/tcp 차단
+      ansible.posix.firewalld:
+        port: 8888/tcp
+        permanent: true
+        immediate: true
+        state: disabled
+
+    # --------------------------------------------------
+    # 2. WEB 서비스 중지 및 비활성화
+    # --------------------------------------------------
+    - name: WEB 서비스 중지
+      ansible.builtin.systemd:
+        name: httpd
+        state: stopped
+        enabled: false
+      ignore_errors: true  # 이미 중지/삭제된 경우 에러를 무시하고 진행
+
+    # --------------------------------------------------
+    # 3. SELinux 정책 원복 (RHEL System Role 활용)
+    # --------------------------------------------------
+    - name: SELinux 설정 원복
+      ansible.builtin.include_role:
+        name: rhel-system-roles.selinux
+
+    # --------------------------------------------------
+    # 4. 생성된 디렉터리 및 덮어씌운 설정 파일 삭제
+    # --------------------------------------------------
+    - name: WEB 디렉터리 및 설정 파일 잔여물 삭제
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /www
+        - /etc/httpd
+
+    # --------------------------------------------------
+    # 5. 패키지 삭제
+    # --------------------------------------------------
+    - name: WEB 패키지 삭제
+      ansible.builtin.dnf:
+        name:
+          - httpd
+          - mod_ssl
+        state: absent
